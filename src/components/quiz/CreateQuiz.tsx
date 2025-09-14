@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { ArrowLeft, Save, Eye, Plus, Image, Trash2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { ArrowLeft, Save, Eye, Plus, Image, Trash2, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,18 +9,46 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { useQuizzes, CreateQuizData } from "@/hooks/useQuizzes";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+
+interface LocalQuestion {
+  id: string;
+  type: "multiple-choice" | "fill-blank" | "short-answer";
+  text: string;
+  options: string[];
+  correctAnswer: number;
+  hasImage: boolean;
+  points: number;
+}
 
 const CreateQuiz = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { createQuiz } = useQuizzes();
+  
+  const [saving, setSaving] = useState(false);
+  
+  // Quiz settings
   const [quizTitle, setQuizTitle] = useState("");
   const [quizDescription, setQuizDescription] = useState("");
   const [duration, setDuration] = useState("60");
   const [allowMultipleAttempts, setAllowMultipleAttempts] = useState(false);
   const [shuffleQuestions, setShuffleQuestions] = useState(false);
   const [showResultsImmediately, setShowResultsImmediately] = useState(false);
+  
+  // SEB settings
+  const [requireSeb, setRequireSeb] = useState(false);
+  const [sebConfigKey, setSebConfigKey] = useState("");
+  const [sebBrowserExamKey, setSebBrowserExamKey] = useState("");
+  const [sebQuitUrl, setSebQuitUrl] = useState("");
 
-  const [questions, setQuestions] = useState([
+  // Local questions state for editing
+  const [localQuestions, setLocalQuestions] = useState<LocalQuestion[]>([
     {
-      id: "1",
+      id: "temp-1",
       type: "multiple-choice",
       text: "",
       options: ["", "", "", ""],
@@ -31,8 +59,8 @@ const CreateQuiz = () => {
   ]);
 
   const addQuestion = () => {
-    const newQuestion = {
-      id: Date.now().toString(),
+    const newQuestion: LocalQuestion = {
+      id: `temp-${Date.now()}`,
       type: "multiple-choice",
       text: "",
       options: ["", "", "", ""],
@@ -40,17 +68,63 @@ const CreateQuiz = () => {
       hasImage: false,
       points: 1
     };
-    setQuestions([...questions, newQuestion]);
+    setLocalQuestions([...localQuestions, newQuestion]);
   };
 
-  const updateQuestion = (id: string, field: string, value: any) => {
-    setQuestions(questions.map(q => 
+  const updateLocalQuestion = (id: string, field: keyof LocalQuestion, value: any) => {
+    setLocalQuestions(localQuestions.map(q => 
       q.id === id ? { ...q, [field]: value } : q
     ));
   };
 
   const removeQuestion = (id: string) => {
-    setQuestions(questions.filter(q => q.id !== id));
+    if (localQuestions.length > 1) {
+      setLocalQuestions(localQuestions.filter(q => q.id !== id));
+    }
+  };
+
+  const handleSaveQuiz = async () => {
+    if (!quizTitle.trim()) {
+      toast.error("Please enter a quiz title");
+      return;
+    }
+
+    if (localQuestions.some(q => !q.text.trim())) {
+      toast.error("Please fill in all question texts");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      // Create quiz data
+      const quizData: CreateQuizData = {
+        title: quizTitle,
+        description: quizDescription || undefined,
+        duration: parseInt(duration),
+        allow_multiple_attempts: allowMultipleAttempts,
+        shuffle_questions: shuffleQuestions,
+        show_results_immediately: showResultsImmediately,
+        require_seb: requireSeb,
+        seb_config_key: sebConfigKey || undefined,
+        seb_browser_exam_key: sebBrowserExamKey || undefined,
+        seb_quit_url: sebQuitUrl || undefined
+      };
+
+      const createdQuiz = await createQuiz(quizData);
+      
+      if (createdQuiz) {
+        // For now, we'll navigate back to the quiz list
+        // In a future update, we'll implement question creation via API
+        toast.success("Quiz created successfully!");
+        navigate("/admin/quizzes");
+      }
+    } catch (error) {
+      console.error("Error saving quiz:", error);
+      toast.error("Failed to save quiz");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -70,13 +144,18 @@ const CreateQuiz = () => {
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <Button variant="outline">
+          <Button variant="outline" disabled>
             <Eye className="h-4 w-4 mr-2" />
             Preview
           </Button>
-          <Button variant="academic" className="shadow-elegant">
+          <Button 
+            variant="academic" 
+            className="shadow-elegant"
+            onClick={handleSaveQuiz}
+            disabled={saving}
+          >
             <Save className="h-4 w-4 mr-2" />
-            Save Quiz
+            {saving ? "Saving..." : "Save Quiz"}
           </Button>
         </div>
       </div>
@@ -157,6 +236,58 @@ const CreateQuiz = () => {
                   />
                 </div>
               </div>
+
+              {/* SEB Settings */}
+              <Separator />
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-4 w-4 text-primary" />
+                  <Label className="text-base font-medium">Safe Exam Browser (SEB)</Label>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="require-seb">Require SEB</Label>
+                  <Switch
+                    id="require-seb"
+                    checked={requireSeb}
+                    onCheckedChange={setRequireSeb}
+                  />
+                </div>
+
+                {requireSeb && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="seb-config-key">SEB Config Key</Label>
+                      <Input
+                        id="seb-config-key"
+                        value={sebConfigKey}
+                        onChange={(e) => setSebConfigKey(e.target.value)}
+                        placeholder="Enter SEB Config Key..."
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="seb-browser-key">SEB Browser Exam Key</Label>
+                      <Input
+                        id="seb-browser-key"
+                        value={sebBrowserExamKey}
+                        onChange={(e) => setSebBrowserExamKey(e.target.value)}
+                        placeholder="Enter Browser Exam Key..."
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="seb-quit-url">SEB Quit URL</Label>
+                      <Input
+                        id="seb-quit-url"
+                        value={sebQuitUrl}
+                        onChange={(e) => setSebQuitUrl(e.target.value)}
+                        placeholder="https://..."
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -165,7 +296,7 @@ const CreateQuiz = () => {
         <div className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-foreground">
-              Questions ({questions.length})
+              Questions ({localQuestions.length})
             </h3>
             <Button onClick={addQuestion} variant="outline">
               <Plus className="h-4 w-4 mr-2" />
@@ -174,7 +305,7 @@ const CreateQuiz = () => {
           </div>
 
           <div className="space-y-4">
-            {questions.map((question, index) => (
+            {localQuestions.map((question, index) => (
               <Card key={question.id} className="shadow-card">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
@@ -182,7 +313,7 @@ const CreateQuiz = () => {
                     <div className="flex items-center space-x-2">
                       <Select
                         value={question.type}
-                        onValueChange={(value) => updateQuestion(question.id, "type", value)}
+                        onValueChange={(value) => updateLocalQuestion(question.id, "type", value)}
                       >
                         <SelectTrigger className="w-40">
                           <SelectValue />
@@ -193,7 +324,7 @@ const CreateQuiz = () => {
                           <SelectItem value="short-answer">Short Answer</SelectItem>
                         </SelectContent>
                       </Select>
-                      {questions.length > 1 && (
+                      {localQuestions.length > 1 && (
                         <Button 
                           variant="outline" 
                           size="sm"
@@ -210,14 +341,14 @@ const CreateQuiz = () => {
                     <Label>Question Text</Label>
                     <Textarea
                       value={question.text}
-                      onChange={(e) => updateQuestion(question.id, "text", e.target.value)}
+                      onChange={(e) => updateLocalQuestion(question.id, "text", e.target.value)}
                       placeholder="Enter your question here..."
                       rows={2}
                     />
                   </div>
 
                   <div className="flex items-center space-x-4">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" disabled>
                       <Image className="h-4 w-4 mr-2" />
                       Add Image
                     </Button>
@@ -236,7 +367,7 @@ const CreateQuiz = () => {
                             onChange={(e) => {
                               const newOptions = [...question.options];
                               newOptions[optionIndex] = e.target.value;
-                              updateQuestion(question.id, "options", newOptions);
+                              updateLocalQuestion(question.id, "options", newOptions);
                             }}
                             placeholder={`Option ${optionIndex + 1}`}
                             className="flex-1"
@@ -244,7 +375,7 @@ const CreateQuiz = () => {
                           <Button
                             variant={question.correctAnswer === optionIndex ? "default" : "outline"}
                             size="sm"
-                            onClick={() => updateQuestion(question.id, "correctAnswer", optionIndex)}
+                            onClick={() => updateLocalQuestion(question.id, "correctAnswer", optionIndex)}
                           >
                             {question.correctAnswer === optionIndex ? "Correct" : "Mark"}
                           </Button>

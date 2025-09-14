@@ -1,7 +1,8 @@
-import { Routes, Route, Link, useLocation } from "react-router-dom";
-import { Plus, BookOpen, FileText, BarChart3, Settings, Users } from "lucide-react";
+import { Routes, Route, Link, useLocation, Navigate } from "react-router-dom";
+import { Plus, BookOpen, FileText, BarChart3, Settings, Users, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
 import QuizList from "./QuizList";
 import QuestionBank from "./QuestionBank";
 import CreateQuiz from "./CreateQuiz";
@@ -9,6 +10,20 @@ import Results from "./Results";
 
 const AdminDashboard = () => {
   const location = useLocation();
+  const { user, loading, signOut } = useAuth();
+  
+  // Redirect to auth if not logged in
+  if (!loading && !user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
   
   const navigation = [
     { name: "Quizzes", href: "/admin/quizzes", icon: BookOpen },
@@ -42,6 +57,10 @@ const AdminDashboard = () => {
               <Button variant="outline" size="sm">
                 <Users className="h-4 w-4 mr-2" />
                 Students
+              </Button>
+              <Button variant="outline" size="sm" onClick={signOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
               </Button>
             </div>
           </div>
