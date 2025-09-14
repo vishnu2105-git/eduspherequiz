@@ -18,6 +18,10 @@ const QuizImport = ({ onImportComplete }: QuizImportProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [duration, setDuration] = useState(90);
+  const [requirePassword, setRequirePassword] = useState(false);
+  const [password, setPassword] = useState("");
+  const [publishImmediately, setPublishImmediately] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -52,33 +56,29 @@ const QuizImport = ({ onImportComplete }: QuizImportProps) => {
   };
 
   const handleImport = async () => {
-    if (!file) {
-      toast.error("Please select a PDF file");
-      return;
-    }
-
-    if (!title.trim()) {
-      toast.error("Please enter a quiz title");
+    if (!file || !title.trim()) return;
+    if (requirePassword && !password.trim()) {
+      toast.error("Please enter a password");
       return;
     }
 
     setIsImporting(true);
-
     try {
       const quizId = await PDFImportService.importQuizFromPDF(
         file,
         title.trim(),
-        description.trim() || undefined
+        description.trim(),
+        duration,
+        requirePassword ? password.trim() : undefined,
+        publishImmediately
       );
-
-      setIsOpen(false);
-      resetForm();
       
-      if (onImportComplete) {
-        onImportComplete(quizId);
-      }
+      toast.success("Quiz imported successfully!");
+      onImportComplete?.(quizId);
+      handleClose();
     } catch (error) {
-      // Error handling is already done in the service
+      console.error("Import failed:", error);
+      toast.error("Failed to import quiz. Please try again.");
     } finally {
       setIsImporting(false);
     }

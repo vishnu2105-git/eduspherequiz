@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { RealPDFParser } from "./realPdfParser";
 
 export interface ParsedQuestion {
   question_text: string;
@@ -22,106 +23,56 @@ export interface ParsedQuiz {
   questions: ParsedQuestion[];
 }
 
-export class PDFImportService {
-  private static async uploadQuizImage(
-    quizId: string, 
-    questionIndex: number, 
-    imageBlob: Blob, 
-    filename: string
-  ): Promise<string> {
-    const fileExt = filename.split('.').pop() || 'png';
-    const fileName = `quiz-${quizId}/question-${questionIndex}.${fileExt}`;
-    
-    const { data, error } = await supabase.storage
-      .from('quiz-images')
-      .upload(fileName, imageBlob, {
-        contentType: imageBlob.type,
-        upsert: true
-      });
-
-    if (error) {
-      console.error('Error uploading image:', error);
-      throw new Error(`Failed to upload image: ${error.message}`);
-    }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('quiz-images')
-      .getPublicUrl(fileName);
-
-    return publicUrl;
-  }
-
+export class PDFImportService {  
   static async importQuizFromPDF(
     pdfFile: File,
     quizTitle?: string,
-    quizDescription?: string
+    quizDescription?: string,
+    duration?: number,
+    password?: string,
+    publishImmediately?: boolean
   ): Promise<string> {
     try {
       toast.loading("Processing PDF...");
 
-      // For demo, we'll parse the Dallas ISD geometry questions based on the PDF structure
-      const parsedQuiz = await this.parseDallasISDQuiz(pdfFile, quizTitle, quizDescription);
+      // Use real PDF parser
+      const parsedQuiz = await RealPDFParser.parseQuizFromPDF(
+        pdfFile,
+        quizTitle,
+        quizDescription
+      );
       
-      // Create quiz in database
-      const { data: quiz, error: quizError } = await supabase
-        .from('quizzes')
-        .insert({
-          title: parsedQuiz.title,
-          description: parsedQuiz.description,
-          duration: parsedQuiz.duration,
-          status: 'draft',
-          created_by: (await supabase.auth.getUser()).data.user?.id
-        })
-        .select()
-        .single();
-
-      if (quizError) throw quizError;
-      if (!quiz) throw new Error('Failed to create quiz');
-
-      // Process questions with images
-      const questionsWithImages = await Promise.all(
-        parsedQuiz.questions.map(async (question, index) => {
-          let imageUrl = null;
-          
-          if (question.has_image && question.image_data) {
-            try {
-              imageUrl = await this.uploadQuizImage(
-                quiz.id,
-                index,
-                question.image_data.blob,
-                question.image_data.filename
-              );
-            } catch (error) {
-              console.error(`Failed to upload image for question ${index}:`, error);
-              // Continue without image rather than failing
-            }
-          }
-
-          return {
-            quiz_id: quiz.id,
-            question_text: question.question_text,
-            question_type: question.question_type,
-            options: question.options,
-            correct_answer: question.correct_answer,
-            points: question.points,
-            order_index: question.order_index,
-            has_image: question.has_image,
-            image_url: imageUrl
-          };
-        })
+      // Update duration if provided
+      if (duration) {
+        parsedQuiz.duration = duration;
+      }
+      
+      // Create quiz using the real parser
+      const quizId = await RealPDFParser.createQuizFromParsedData(
+        parsedQuiz,
+        publishImmediately || false,
+        password
       );
 
-      // Insert questions
-      const { error: questionsError } = await supabase
-        .from('questions')
-        .insert(questionsWithImages);
-
-      if (questionsError) throw questionsError;
-
       toast.dismiss();
-      toast.success(`Quiz imported successfully with ${parsedQuiz.questions.length} questions!`);
+      const message = publishImmediately 
+        ? `Quiz published with ${parsedQuiz.questions.length} questions!`
+        : `Quiz imported successfully with ${parsedQuiz.questions.length} questions!`;
       
-      return quiz.id;
+      toast.success(message, {
+        duration: 5000,
+        action: publishImmediately ? {
+          label: 'Open Direct Link',
+          onClick: () => {
+            const directUrl = `${window.location.origin}/quiz/${quizId}/direct`;
+            navigator.clipboard.writeText(directUrl);
+            toast.success('Direct link copied to clipboard!');
+            window.open(directUrl, '_blank');
+          }
+        } : undefined
+      });
+      
+      return quizId;
     } catch (error) {
       toast.dismiss();
       toast.error("Failed to import PDF: " + (error as Error).message);
