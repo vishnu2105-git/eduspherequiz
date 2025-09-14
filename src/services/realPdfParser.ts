@@ -1,9 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import * as pdfjsLib from 'pdfjs-dist';
+import workerSrc from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { toast } from "sonner";
 
-// Set worker source
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+// Configure local PDF.js worker (avoids CDN/CORS issues)
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc as unknown as string;
 
 export interface ParsedQuestion {
   question_text: string;
@@ -79,7 +80,7 @@ export class RealPDFParser {
         // Render page as image
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d')!;
-        const viewport = page.getViewport({ scale: 2.0 });
+        const viewport = page.getViewport({ scale: 1.5 });
         
         canvas.height = viewport.height;
         canvas.width = viewport.width;
@@ -108,6 +109,10 @@ export class RealPDFParser {
             filename: `question_${questionNum}.png`
           }
         });
+      }
+
+      if (questions.length === 0) {
+        throw new Error('No questions detected in the PDF. Ensure it has selectable text and clearly labeled options (A., B., C., D.).');
       }
 
       return {
