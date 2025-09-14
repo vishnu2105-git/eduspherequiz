@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Filter, Clock, Users, MoreHorizontal, Eye, Edit, Trash, FileText, BookOpen, Shield, Play } from "lucide-react";
+import { Plus, Search, Filter, Clock, Users, MoreHorizontal, Eye, Edit, Trash, FileText, BookOpen, Shield, Play, Share, Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 import { useQuizzes } from "@/hooks/useQuizzes";
 
 const QuizList = () => {
@@ -25,6 +26,15 @@ const QuizList = () => {
 
   const handlePublish = async (id: string) => {
     await publishQuiz(id);
+  };
+
+  const handleCopyLink = (quizId: string) => {
+    const shareableLink = `${window.location.origin}/quiz/${quizId}/direct`;
+    navigator.clipboard.writeText(shareableLink).then(() => {
+      toast.success("Quiz link copied to clipboard!");
+    }).catch(() => {
+      toast.error("Failed to copy link");
+    });
   };
 
   const formatDate = (dateString: string) => {
@@ -172,15 +182,57 @@ const QuizList = () => {
                     </Badge>
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-border">
-                    <span className="text-xs text-muted-foreground">
-                      Created {formatDate(quiz.created_at)}
-                    </span>
-                    <Link to={`/quiz/${quiz.id}`}>
-                      <Button variant="outline" size="sm">
-                        View Quiz
+                  <div className="space-y-3 pt-2 border-t border-border">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">
+                        Created {formatDate(quiz.created_at)}
+                      </span>
+                      {quiz.status === 'published' && (
+                        <Badge variant="secondary" className="text-xs">
+                          <Share className="h-3 w-3 mr-1" />
+                          Ready to share
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    {quiz.status === 'published' ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between p-2 bg-muted/30 rounded border text-xs">
+                          <span className="text-muted-foreground font-mono truncate flex-1 mr-2">
+                            {window.location.origin}/quiz/{quiz.id}/direct
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 shrink-0"
+                            onClick={() => handleCopyLink(quiz.id)}
+                            title="Copy student link"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => handleCopyLink(quiz.id)}
+                          >
+                            <Copy className="h-4 w-4 mr-2" />
+                            Copy Link
+                          </Button>
+                          <Link to={`/quiz/${quiz.id}/direct`}>
+                            <Button variant="outline" size="sm">
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button variant="outline" size="sm" disabled className="w-full">
+                        Publish to share
                       </Button>
-                    </Link>
+                    )}
                   </div>
                 </CardContent>
               </Card>
