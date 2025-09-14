@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      attempt_answers: {
+        Row: {
+          answer_text: string | null
+          attempt_id: string
+          created_at: string
+          id: string
+          is_correct: boolean | null
+          points_earned: number | null
+          question_id: string
+          updated_at: string
+        }
+        Insert: {
+          answer_text?: string | null
+          attempt_id: string
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          points_earned?: number | null
+          question_id: string
+          updated_at?: string
+        }
+        Update: {
+          answer_text?: string | null
+          attempt_id?: string
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          points_earned?: number | null
+          question_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attempt_answers_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attempt_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -47,15 +95,195 @@ export type Database = {
         }
         Relationships: []
       }
+      questions: {
+        Row: {
+          correct_answer: string | null
+          created_at: string
+          has_image: boolean
+          id: string
+          image_url: string | null
+          options: Json | null
+          order_index: number
+          points: number
+          question_text: string
+          question_type: Database["public"]["Enums"]["question_type"]
+          quiz_id: string
+          updated_at: string
+        }
+        Insert: {
+          correct_answer?: string | null
+          created_at?: string
+          has_image?: boolean
+          id?: string
+          image_url?: string | null
+          options?: Json | null
+          order_index: number
+          points?: number
+          question_text: string
+          question_type: Database["public"]["Enums"]["question_type"]
+          quiz_id: string
+          updated_at?: string
+        }
+        Update: {
+          correct_answer?: string | null
+          created_at?: string
+          has_image?: boolean
+          id?: string
+          image_url?: string | null
+          options?: Json | null
+          order_index?: number
+          points?: number
+          question_text?: string
+          question_type?: Database["public"]["Enums"]["question_type"]
+          quiz_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "questions_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_attempts: {
+        Row: {
+          access_token: string | null
+          created_at: string
+          id: string
+          is_seb_session: boolean
+          max_score: number | null
+          quiz_id: string
+          score: number | null
+          seb_session_data: Json | null
+          started_at: string
+          status: Database["public"]["Enums"]["attempt_status"]
+          student_email: string | null
+          student_name: string | null
+          submitted_at: string | null
+          time_spent: number | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          created_at?: string
+          id?: string
+          is_seb_session?: boolean
+          max_score?: number | null
+          quiz_id: string
+          score?: number | null
+          seb_session_data?: Json | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["attempt_status"]
+          student_email?: string | null
+          student_name?: string | null
+          submitted_at?: string | null
+          time_spent?: number | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          created_at?: string
+          id?: string
+          is_seb_session?: boolean
+          max_score?: number | null
+          quiz_id?: string
+          score?: number | null
+          seb_session_data?: Json | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["attempt_status"]
+          student_email?: string | null
+          student_name?: string | null
+          submitted_at?: string | null
+          time_spent?: number | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quizzes: {
+        Row: {
+          allow_multiple_attempts: boolean
+          created_at: string
+          created_by: string
+          description: string | null
+          duration: number
+          id: string
+          max_attempts: number | null
+          require_seb: boolean
+          seb_browser_exam_key: string | null
+          seb_config_key: string | null
+          seb_quit_url: string | null
+          show_results_immediately: boolean
+          shuffle_questions: boolean
+          status: Database["public"]["Enums"]["quiz_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          allow_multiple_attempts?: boolean
+          created_at?: string
+          created_by: string
+          description?: string | null
+          duration?: number
+          id?: string
+          max_attempts?: number | null
+          require_seb?: boolean
+          seb_browser_exam_key?: string | null
+          seb_config_key?: string | null
+          seb_quit_url?: string | null
+          show_results_immediately?: boolean
+          shuffle_questions?: boolean
+          status?: Database["public"]["Enums"]["quiz_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          allow_multiple_attempts?: boolean
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          duration?: number
+          id?: string
+          max_attempts?: number | null
+          require_seb?: boolean
+          seb_browser_exam_key?: string | null
+          seb_config_key?: string | null
+          seb_quit_url?: string | null
+          show_results_immediately?: boolean
+          shuffle_questions?: boolean
+          status?: Database["public"]["Enums"]["quiz_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_access_token: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
-      [_ in never]: never
+      attempt_status: "in_progress" | "submitted" | "graded"
+      question_type: "multiple-choice" | "fill-blank" | "short-answer"
+      quiz_status: "draft" | "published" | "archived"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -182,6 +410,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      attempt_status: ["in_progress", "submitted", "graded"],
+      question_type: ["multiple-choice", "fill-blank", "short-answer"],
+      quiz_status: ["draft", "published", "archived"],
+    },
   },
 } as const
