@@ -57,24 +57,56 @@ export class RealPDFParser {
           .map((item) => item.str)
           .join(' ');
 
-        // Look for question pattern: "# 1." or "1." at start
-        const questionMatch = pageText.match(/(?:^|\s)#?\s*(\d+)\.\s*(.+?)(?=A\.|$)/s);
-        if (!questionMatch) continue;
-
-        const questionNum = parseInt(questionMatch[1]);
-        const questionText = questionMatch[2].trim();
-
+        // Look for question pattern and extract content more precisely
+        const lines = pageText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+        
+        // Find question number at start of page
+        let questionNum: number | null = null;
+        let questionText = '';
+        let questionStartIndex = -1;
+        
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const questionMatch = line.match(/^\s*(\d+)\.\s*(.*)$/);
+          if (questionMatch) {
+            questionNum = parseInt(questionMatch[1]);
+            questionText = questionMatch[2].trim();
+            questionStartIndex = i;
+            break;
+          }
+        }
+        
+        if (!questionNum || questionStartIndex === -1) continue;
+        
+        // Collect question text until we hit options (A., B., C., D.) or next question
+        for (let i = questionStartIndex + 1; i < lines.length; i++) {
+          const line = lines[i];
+          // Stop if we hit options or another question number
+          if (line.match(/^[A-D]\.\s/) || line.match(/^\s*\d+\.\s/)) {
+            break;
+          }
+          questionText += ' ' + line;
+        }
+        
+        questionText = questionText.trim();
         if (!questionText) continue;
 
-        // Extract options A, B, C, D
-        const optionMatches = pageText.match(/[A-D]\.\s*([^A-D]*?)(?=[A-D]\.|$)/g);
-        const options = optionMatches?.map(match => {
-          const cleanOption = match.replace(/^[A-D]\.\s*/, '').trim();
-          return cleanOption.replace(/\s+/g, ' ');
-        }).filter(opt => opt.length > 0) || [];
+        // Extract options A, B, C, D - more precise matching
+        const options: string[] = [];
+        for (const letter of ['A', 'B', 'C', 'D']) {
+          const optionRegex = new RegExp(`${letter}\\\.\\s*([^A-D]*?)(?=${letter === 'D' ? '$' : '[A-D]\\.|$'})`, 's');
+          const optionMatch = pageText.match(optionRegex);
+          if (optionMatch) {
+            const cleanOption = optionMatch[1].trim().replace(/\s+/g, ' ');
+            if (cleanOption && !cleanOption.match(/^\d+\./)) { // Don't include next question numbers
+              options.push(cleanOption);
+            }
+          }
+        }
 
         if (options.length !== 4) {
-          console.warn(`Question ${questionNum}: Expected 4 options, found ${options.length}`);
+          console.warn(`Question ${questionNum}: Expected 4 options, found ${options.length}`, options);
+          // Continue with available options or use fallback
         }
 
         // Render page as image

@@ -7,6 +7,7 @@ import QuizList from "./QuizList";
 import QuestionBank from "./QuestionBank";
 import CreateQuiz from "./CreateQuiz";
 import Results from "./Results";
+import QuizResultDetail from "./QuizResultDetail";
 
 const AdminDashboard = () => {
   const location = useLocation();
@@ -100,6 +101,7 @@ const AdminDashboard = () => {
               <Route path="/questions" element={<QuestionBank />} />
               <Route path="/create" element={<CreateQuiz />} />
               <Route path="/results" element={<Results />} />
+              <Route path="/results/:attemptId" element={<QuizResultDetail />} />
               <Route path="/settings" element={<div>Settings coming soon...</div>} />
             </Routes>
           </main>

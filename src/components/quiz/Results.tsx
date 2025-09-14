@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Download, Filter, Search, Calendar, TrendingUp, Users, Clock, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 interface QuizResult {
   id: string;
@@ -20,46 +23,100 @@ interface QuizResult {
 }
 
 const Results = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterQuiz, setFilterQuiz] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [results, setResults] = useState<QuizResult[]>([]);
+  const [quizzes, setQuizzes] = useState<Array<{id: string, title: string}>>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Sample results data
-  const results: QuizResult[] = [
-    {
-      id: "1",
-      studentName: "Alice Johnson",
-      studentEmail: "alice.j@school.edu",
-      quizTitle: "Geometry Assessment",
-      score: 23,
-      totalPoints: 25,
-      timeSpent: 52,
-      completedAt: "2024-01-20T14:30:00",
-      status: "completed"
-    },
-    {
-      id: "2",
-      studentName: "Bob Smith",
-      studentEmail: "bob.s@school.edu",
-      quizTitle: "Geometry Assessment",
-      score: 19,
-      totalPoints: 25,
-      timeSpent: 58,
-      completedAt: "2024-01-20T15:45:00",
-      status: "completed"
-    },
-    {
-      id: "3",
-      studentName: "Carol Wilson",
-      studentEmail: "carol.w@school.edu",
-      quizTitle: "Algebra Fundamentals",
-      score: 27,
-      totalPoints: 30,
-      timeSpent: 41,
-      completedAt: "2024-01-19T10:15:00",
-      status: "completed"
+  useEffect(() => {
+    fetchResults();
+  }, []);
+
+  const fetchResults = async () => {
+    try {
+      setLoading(true);
+
+      // Get current user to filter results for their quizzes only
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Please log in to view results");
+        return;
+      }
+
+      // Fetch quiz attempts with related quiz data
+      const { data: attempts, error: attemptsError } = await supabase
+        .from('quiz_attempts')
+        .select(`
+          id,
+          status,
+          score,
+          max_score,
+          time_spent,
+          submitted_at,
+          student_name,
+          student_email,
+          user_id,
+          quizzes!inner (
+            id,
+            title,
+            created_by
+          )
+        `)
+        .eq('quizzes.created_by', user.id)
+        .order('submitted_at', { ascending: false });
+
+      if (attemptsError) throw attemptsError;
+
+      // Get profile names for attempts with user_id
+      const userIds = attempts?.filter(a => a.user_id).map(a => a.user_id) || [];
+      let profiles: Record<string, string> = {};
+      
+      if (userIds.length > 0) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('user_id, display_name')
+          .in('user_id', userIds);
+        
+        profiles = profileData?.reduce((acc, profile) => {
+          acc[profile.user_id] = profile.display_name || '';
+          return acc;
+        }, {} as Record<string, string>) || {};
+      }
+
+      // Transform data to match component interface
+      const transformedResults: QuizResult[] = attempts?.map(attempt => ({
+        id: attempt.id,
+        studentName: attempt.student_name || (attempt.user_id ? profiles[attempt.user_id] : null) || 'Anonymous',
+        studentEmail: attempt.student_email || 'N/A',
+        quizTitle: attempt.quizzes.title,
+        score: attempt.score || 0,
+        totalPoints: attempt.max_score || 0,
+        timeSpent: Math.floor((attempt.time_spent || 0) / 60), // Convert seconds to minutes
+        completedAt: attempt.submitted_at || new Date().toISOString(),
+        status: attempt.status === 'submitted' ? 'completed' : attempt.status as any
+      })) || [];
+
+      setResults(transformedResults);
+
+      // Get unique quiz titles for filter dropdown
+      const uniqueQuizzes = Array.from(
+        new Set(transformedResults.map(r => r.quizTitle))
+      ).map(title => ({ 
+        id: title, 
+        title 
+      }));
+      setQuizzes(uniqueQuizzes);
+
+    } catch (error) {
+      console.error('Error fetching results:', error);
+      toast.error("Failed to fetch results");
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   const filteredResults = results.filter(result => {
     const matchesSearch = 
@@ -212,8 +269,11 @@ const Results = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Quizzes</SelectItem>
-                <SelectItem value="Geometry Assessment">Geometry Assessment</SelectItem>
-                <SelectItem value="Algebra Fundamentals">Algebra Fundamentals</SelectItem>
+                {quizzes.map(quiz => (
+                  <SelectItem key={quiz.id} value={quiz.title}>
+                    {quiz.title}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -251,39 +311,68 @@ const Results = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredResults.map((result) => (
-                <TableRow key={result.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{result.studentName}</div>
-                      <div className="text-sm text-muted-foreground">{result.studentEmail}</div>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></div>
+                      <span className="text-muted-foreground">Loading results...</span>
                     </div>
-                  </TableCell>
-                  <TableCell className="font-medium">{result.quizTitle}</TableCell>
-                  <TableCell>
-                    <div className={`font-semibold ${getScoreColor(result.score, result.totalPoints)}`}>
-                      {result.score}/{result.totalPoints}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {((result.score / result.totalPoints) * 100).toFixed(1)}%
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {result.timeSpent}m
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{getStatusBadge(result.status)}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {formatDate(result.completedAt)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="outline" size="sm">
-                      View Details
-                    </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : filteredResults.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    <div className="text-muted-foreground">
+                      {results.length === 0 ? "No quiz attempts found" : "No results match your filters"}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredResults.map((result) => (
+                  <TableRow key={result.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{result.studentName}</div>
+                        <div className="text-sm text-muted-foreground">{result.studentEmail}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium">{result.quizTitle}</TableCell>
+                    <TableCell>
+                      {result.totalPoints > 0 ? (
+                        <>
+                          <div className={`font-semibold ${getScoreColor(result.score, result.totalPoints)}`}>
+                            {result.score}/{result.totalPoints}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {((result.score / result.totalPoints) * 100).toFixed(1)}%
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">Not graded</div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {result.timeSpent}m
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{getStatusBadge(result.status)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDate(result.completedAt)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => navigate(`/admin/results/${result.id}`)}
+                      >
+                        View Details
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
