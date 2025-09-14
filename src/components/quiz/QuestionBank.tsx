@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import QuizImport from "./QuizImport";
+import { useNavigate } from "react-router-dom";
 
 interface Question {
   id: string;
@@ -18,8 +20,13 @@ interface Question {
 }
 
 const QuestionBank = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("all");
+
+  const handleImportComplete = (quizId: string) => {
+    navigate(`/admin/quizzes`);
+  };
 
   // Sample questions data
   const questions: Question[] = [
@@ -96,10 +103,7 @@ const QuestionBank = () => {
           <p className="text-muted-foreground">Manage your question library and import new questions</p>
         </div>
         <div className="flex items-center space-x-3">
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" />
-            Import
-          </Button>
+          <QuizImport onImportComplete={handleImportComplete} />
           <Button variant="academic" className="shadow-elegant">
             <Plus className="h-4 w-4 mr-2" />
             Add Question

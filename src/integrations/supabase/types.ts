@@ -215,6 +215,7 @@ export type Database = {
       }
       quizzes: {
         Row: {
+          access_password: string | null
           allow_multiple_attempts: boolean
           created_at: string
           created_by: string
@@ -222,6 +223,7 @@ export type Database = {
           duration: number
           id: string
           max_attempts: number | null
+          password_protected: boolean
           require_seb: boolean
           seb_browser_exam_key: string | null
           seb_config_key: string | null
@@ -233,6 +235,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          access_password?: string | null
           allow_multiple_attempts?: boolean
           created_at?: string
           created_by: string
@@ -240,6 +243,7 @@ export type Database = {
           duration?: number
           id?: string
           max_attempts?: number | null
+          password_protected?: boolean
           require_seb?: boolean
           seb_browser_exam_key?: string | null
           seb_config_key?: string | null
@@ -251,6 +255,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          access_password?: string | null
           allow_multiple_attempts?: boolean
           created_at?: string
           created_by?: string
@@ -258,6 +263,7 @@ export type Database = {
           duration?: number
           id?: string
           max_attempts?: number | null
+          password_protected?: boolean
           require_seb?: boolean
           seb_browser_exam_key?: string | null
           seb_config_key?: string | null

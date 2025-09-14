@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Clock, AlertCircle, ChevronLeft, ChevronRight, Flag, Check } from "lucide-react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { Clock, AlertCircle, ChevronLeft, ChevronRight, Flag, Check, ZoomIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -10,15 +10,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuizzes } from "@/hooks/useQuizzes";
+import ImageZoom from "./ImageZoom";
+import { toast } from "sonner";
 
 interface Question {
   id: string;
-  type: "multiple-choice" | "fill-blank" | "short-answer";
-  text: string;
-  options?: string[];
-  hasImage?: boolean;
-  imageUrl?: string;
+  question_text: string;
+  question_type: "multiple-choice" | "fill-blank" | "short-answer";
+  options: string[] | null;
+  has_image: boolean;
+  image_url: string | null;
   points: number;
+  order_index: number;
 }
 
 interface QuizData {
@@ -32,55 +37,143 @@ interface QuizData {
 const QuizTaking = () => {
   const { quizId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token');
   
+  const [quizData, setQuizData] = useState<QuizData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [timeRemaining, setTimeRemaining] = useState(3600); // 60 minutes in seconds
+  const [timeRemaining, setTimeRemaining] = useState(3600);
   const [flaggedQuestions, setFlaggedQuestions] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<{ src: string; alt: string } | null>(null);
 
-  // Sample quiz data
-  const quizData: QuizData = {
-    id: "1",
-    title: "Geometry Assessment",
-    description: "Comprehensive geometry test covering coordinate systems and spatial reasoning",
-    duration: 60,
-    questions: [
-      {
-        id: "q1",
-        type: "multiple-choice",
-        text: "What is the slope of the line passing through points (2, 3) and (4, 7)?",
-        options: ["2", "1/2", "-2", "4"],
-        hasImage: true,
-        imageUrl: "/placeholder.svg",
-        points: 2
-      },
-      {
-        id: "q2", 
-        type: "fill-blank",
-        text: "The area of a circle with radius r is π × _____²",
-        points: 1
-      },
-      {
-        id: "q3",
-        type: "short-answer",
-        text: "Explain the Pythagorean theorem and provide an example of its application.",
-        points: 3
-      },
-      {
-        id: "q4",
-        type: "multiple-choice",
-        text: "Which of the following is NOT a property of parallel lines?",
-        options: [
-          "They never intersect",
-          "They have the same slope",
-          "They form right angles",
-          "They maintain equal distance"
-        ],
-        points: 1
+  useEffect(() => {
+    if (quizId) {
+      fetchQuizData();
+    }
+  }, [quizId]);
+
+  const fetchQuizData = async () => {
+    try {
+      // Fetch quiz details
+      const { data: quiz, error: quizError } = await supabase
+        .from('quizzes')
+        .select('id, title, description, duration, status')
+        .eq('id', quizId)
+        .single();
+
+      if (quizError) throw quizError;
+      if (!quiz) throw new Error('Quiz not found');
+
+      // Check if quiz is published or if user is the creator
+      if (quiz.status !== 'published') {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          toast.error("Quiz not available");
+          navigate('/auth');
+          return;
+        }
       }
-    ]
+
+      // Fetch questions
+      const { data: questions, error: questionsError } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('quiz_id', quizId)
+        .order('order_index');
+
+      if (questionsError) throw questionsError;
+
+      setQuizData({
+        ...quiz,
+        questions: questions?.map(q => ({
+          ...q,
+          options: q.options ? (q.options as string[]) : null
+        })) || []
+      });
+
+      setTimeRemaining(quiz.duration * 60); // Convert minutes to seconds
+
+      // Create or find attempt
+      if (token) {
+        // Anonymous attempt with token
+        const { data: attempt, error: attemptError } = await supabase
+          .from('quiz_attempts')
+          .select('id')
+          .eq('quiz_id', quizId)
+          .eq('access_token', token)
+          .single();
+
+        if (attemptError || !attempt) {
+          toast.error("Invalid quiz access");
+          navigate('/');
+          return;
+        }
+        setAttemptId(attempt.id);
+      } else {
+        // Authenticated user attempt
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          navigate('/auth');
+          return;
+        }
+
+        const { data: attempt, error: attemptError } = await supabase
+          .from('quiz_attempts')
+          .insert({
+            quiz_id: quizId,
+            user_id: user.id,
+            status: 'in_progress'
+          })
+          .select()
+          .single();
+
+        if (attemptError) throw attemptError;
+        setAttemptId(attempt.id);
+      }
+
+    } catch (error) {
+      console.error('Error fetching quiz:', error);
+      toast.error("Failed to load quiz");
+      navigate('/');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+        <Card className="w-full max-w-md shadow-card">
+          <CardContent className="p-8">
+            <div className="text-center">
+              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading quiz...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!quizData) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+        <Card className="w-full max-w-md shadow-card">
+          <CardContent className="p-8">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold text-foreground mb-2">Quiz Not Found</h2>
+              <p className="text-muted-foreground mb-4">The quiz you're looking for is not available.</p>
+              <Button variant="outline" onClick={() => navigate("/")}>Go Home</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const currentQuestion = quizData.questions[currentQuestionIndex];
   const progress = ((currentQuestionIndex + 1) / quizData.questions.length) * 100;
@@ -140,10 +233,47 @@ const QuizTaking = () => {
   };
 
   const handleSubmitQuiz = async () => {
+    if (!attemptId || !quizData) return;
+    
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    navigate("/student");
+    
+    try {
+      // Save all answers
+      const answerData = Object.entries(answers).map(([questionId, answer]) => ({
+        attempt_id: attemptId,
+        question_id: questionId,
+        answer_text: answer
+      }));
+
+      if (answerData.length > 0) {
+        const { error: answersError } = await supabase
+          .from('attempt_answers')
+          .upsert(answerData);
+
+        if (answersError) throw answersError;
+      }
+
+      // Mark attempt as completed
+      const { error: attemptError } = await supabase
+        .from('quiz_attempts')
+        .update({
+          status: 'submitted',
+          submitted_at: new Date().toISOString(),
+          time_spent: (quizData.duration * 60) - timeRemaining
+        })
+        .eq('id', attemptId);
+
+      if (attemptError) throw attemptError;
+
+      toast.success("Quiz submitted successfully!");
+      navigate(token ? "/" : "/student");
+      
+    } catch (error) {
+      console.error('Error submitting quiz:', error);
+      toast.error("Failed to submit quiz");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getTimerColor = () => {
@@ -247,14 +377,14 @@ const QuizTaking = () => {
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-2">
                       <Badge variant="secondary">
-                        {currentQuestion.type.replace('-', ' ').toUpperCase()}
+                        {currentQuestion.question_type.replace('-', ' ').toUpperCase()}
                       </Badge>
                       <Badge variant="outline">
                         {currentQuestion.points} {currentQuestion.points === 1 ? 'point' : 'points'}
                       </Badge>
                     </div>
                     <CardTitle className="text-lg leading-relaxed">
-                      {currentQuestion.text}
+                      {currentQuestion.question_text}
                     </CardTitle>
                   </div>
                   
@@ -271,25 +401,33 @@ const QuizTaking = () => {
               
               <CardContent className="space-y-6">
                 {/* Image Display */}
-                {currentQuestion.hasImage && currentQuestion.imageUrl && (
+                {currentQuestion.has_image && currentQuestion.image_url && (
                   <div className="rounded-lg border border-border p-4 bg-muted/30">
-                    <img
-                      src={currentQuestion.imageUrl}
-                      alt="Question diagram"
-                      className="w-full max-w-md mx-auto rounded cursor-pointer hover:scale-105 transition-smooth"
-                      onClick={() => {
-                        // Open in modal for zoom functionality
-                      }}
-                    />
+                    <div className="relative group">
+                      <img
+                        src={currentQuestion.image_url}
+                        alt={`Question ${currentQuestionIndex + 1} diagram`}
+                        className="w-full max-w-2xl mx-auto rounded cursor-pointer hover:scale-105 transition-smooth"
+                        onClick={() => setZoomedImage({
+                          src: currentQuestion.image_url!,
+                          alt: `Question ${currentQuestionIndex + 1} diagram`
+                        })}
+                      />
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="secondary" size="sm" className="shadow-lg">
+                          <ZoomIn className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                     <p className="text-xs text-muted-foreground text-center mt-2">
-                      Click image to zoom
+                      Click image to zoom and examine details
                     </p>
                   </div>
                 )}
 
                 {/* Answer Input */}
                 <div className="space-y-4">
-                  {currentQuestion.type === "multiple-choice" && currentQuestion.options && (
+                  {currentQuestion.question_type === "multiple-choice" && currentQuestion.options && (
                     <RadioGroup
                       value={answers[currentQuestion.id] || ""}
                       onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
@@ -309,7 +447,7 @@ const QuizTaking = () => {
                     </RadioGroup>
                   )}
 
-                  {currentQuestion.type === "fill-blank" && (
+                  {currentQuestion.question_type === "fill-blank" && (
                     <div className="space-y-2">
                       <Label htmlFor="fill-answer">Your Answer:</Label>
                       <Input
@@ -322,7 +460,7 @@ const QuizTaking = () => {
                     </div>
                   )}
 
-                  {currentQuestion.type === "short-answer" && (
+                  {currentQuestion.question_type === "short-answer" && (
                     <div className="space-y-2">
                       <Label htmlFor="short-answer">Your Answer:</Label>
                       <Textarea
@@ -384,6 +522,16 @@ const QuizTaking = () => {
           </main>
         </div>
       </div>
+
+      {/* Image Zoom Modal */}
+      {zoomedImage && (
+        <ImageZoom
+          src={zoomedImage.src}
+          alt={zoomedImage.alt}
+          isOpen={!!zoomedImage}
+          onClose={() => setZoomedImage(null)}
+        />
+      )}
     </div>
   );
 };
