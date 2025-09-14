@@ -56,6 +56,23 @@ const QuizTaking = () => {
     }
   }, [quizId]);
 
+  // Timer effect - must be before any early returns
+  useEffect(() => {
+    if (!loading && quizData && quizData.questions.length > 0) {
+      const timer = setInterval(() => {
+        setTimeRemaining((prev) => {
+          if (prev <= 1) {
+            handleSubmitQuiz();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [loading, quizData]);
+
   const fetchQuizData = async () => {
     try {
       // Fetch quiz details
@@ -198,21 +215,6 @@ const QuizTaking = () => {
 
   const currentQuestion = quizData.questions[currentQuestionIndex];
   const progress = ((currentQuestionIndex + 1) / quizData.questions.length) * 100;
-
-  // Timer effect
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          handleSubmitQuiz();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
