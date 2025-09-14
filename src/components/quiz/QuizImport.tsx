@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { DialogFooter } from "@/components/ui/dialog";
 import { Upload, FileText, CheckCircle } from "lucide-react";
 import { PDFImportService } from "@/services/pdfImport";
 import { toast } from "sonner";
@@ -88,6 +90,10 @@ const QuizImport = ({ onImportComplete }: QuizImportProps) => {
     setFile(null);
     setTitle("");
     setDescription("");
+    setDuration(90);
+    setRequirePassword(false);
+    setPassword("");
+    setPublishImmediately(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -200,12 +206,63 @@ const QuizImport = ({ onImportComplete }: QuizImportProps) => {
                 disabled={isImporting}
               />
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="duration">Duration (minutes)</Label>
+                <Input
+                  id="duration"
+                  type="number"
+                  min={1}
+                  value={duration}
+                  onChange={(e) => setDuration(parseInt(e.target.value) || 90)}
+                  disabled={isImporting}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="publish-immediately"
+                    checked={publishImmediately}
+                    onCheckedChange={setPublishImmediately}
+                    disabled={isImporting}
+                  />
+                  <Label htmlFor="publish-immediately">Publish immediately</Label>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 border-t pt-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="require-password"
+                  checked={requirePassword}
+                  onCheckedChange={setRequirePassword}
+                  disabled={isImporting}
+                />
+                <Label htmlFor="require-password">Password protect this quiz</Label>
+              </div>
+
+              {requirePassword && (
+                <div className="space-y-2">
+                  <Label htmlFor="password">Access Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter password for quiz access"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isImporting}
+                  />
+                </div>
+              )}
+            </div>
           </div>
           
-          {/* Import Button */}
-          <div className="flex items-center justify-between pt-4 border-t border-border">
+          <DialogFooter className="flex items-center justify-between pt-4 border-t border-border">
             <p className="text-sm text-muted-foreground">
-              The quiz will be imported as a draft and can be edited before publishing
+              {publishImmediately ? "Quiz will be published and accessible immediately" : "Quiz will be saved as draft"}
             </p>
             
             <div className="flex items-center space-x-3">
@@ -214,13 +271,13 @@ const QuizImport = ({ onImportComplete }: QuizImportProps) => {
               </Button>
               <Button 
                 onClick={handleImport}
-                disabled={!file || !title.trim() || isImporting}
+                disabled={!file || !title.trim() || isImporting || (requirePassword && !password.trim())}
                 className="bg-gradient-accent text-accent-foreground shadow-elegant"
               >
                 {isImporting ? "Importing..." : "Import Quiz"}
               </Button>
             </div>
-          </div>
+          </DialogFooter>
         </div>
       </DialogContent>
     </Dialog>

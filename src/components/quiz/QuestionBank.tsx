@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import QuizImport from "./QuizImport";
+import { AutoCreateButton } from "./AutoCreateButton";
 import { useNavigate } from "react-router-dom";
 
 interface Question {
@@ -103,6 +104,7 @@ const QuestionBank = () => {
           <p className="text-muted-foreground">Manage your question library and import new questions</p>
         </div>
         <div className="flex items-center space-x-3">
+          <AutoCreateButton onQuizCreated={handleImportComplete} />
           <QuizImport onImportComplete={handleImportComplete} />
           <Button variant="academic" className="shadow-elegant">
             <Plus className="h-4 w-4 mr-2" />
