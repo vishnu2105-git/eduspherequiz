@@ -43,9 +43,9 @@ const DirectQuizAccess = () => {
         .select('id, title, description, password_protected, access_password, duration')
         .eq('id', quizId)
         .eq('status', 'published')
-        .single();
+        .maybeSingle();
 
-      if (error) {
+      if (error || !data) {
         setError("Quiz not found or not available");
         return;
       }

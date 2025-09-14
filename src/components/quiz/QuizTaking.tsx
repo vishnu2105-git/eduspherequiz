@@ -63,10 +63,15 @@ const QuizTaking = () => {
         .from('quizzes')
         .select('id, title, description, duration, status')
         .eq('id', quizId)
-        .single();
+        .maybeSingle();
 
       if (quizError) throw quizError;
-      if (!quiz) throw new Error('Quiz not found');
+      if (!quiz) {
+        console.warn('Quiz not found or not available', { quizId });
+        toast.error('Quiz not found or not available');
+        navigate(`/quiz/${quizId}/direct`);
+        return;
+      }
 
       // Check if quiz is published or if user is the creator
       if (quiz.status !== 'published') {
@@ -105,11 +110,12 @@ const QuizTaking = () => {
           .select('id')
           .eq('quiz_id', quizId)
           .eq('access_token', token)
-          .single();
+          .maybeSingle();
 
         if (attemptError || !attempt) {
-          toast.error("Invalid quiz access");
-          navigate('/');
+          console.warn('Invalid or expired quiz access token', { quizId, token });
+          toast.error("Invalid or expired access link");
+          navigate(`/quiz/${quizId}/direct`);
           return;
         }
         setAttemptId(attempt.id);
@@ -117,7 +123,8 @@ const QuizTaking = () => {
         // Authenticated user attempt
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          navigate('/auth');
+          console.info('Unauthenticated user attempting to take quiz; redirecting to direct access', { quizId });
+          navigate(`/quiz/${quizId}/direct`);
           return;
         }
 
@@ -169,6 +176,20 @@ const QuizTaking = () => {
               <p className="text-muted-foreground mb-4">The quiz you're looking for is not available.</p>
               <Button variant="outline" onClick={() => navigate("/")}>Go Home</Button>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (quizData.questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+        <Card className="w-full max-w-md shadow-card">
+          <CardContent className="p-8 text-center space-y-4">
+            <h2 className="text-xl font-semibold text-foreground">No Questions Available</h2>
+            <p className="text-muted-foreground">This quiz doesn't have any questions yet.</p>
+            <Button variant="outline" onClick={() => navigate(`/quiz/${quizData.id}/direct`)}>Go Back</Button>
           </CardContent>
         </Card>
       </div>
