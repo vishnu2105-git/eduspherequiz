@@ -84,6 +84,15 @@ const CreateQuiz = () => {
   };
 
   const handleSaveQuiz = async () => {
+    console.log("handleSaveQuiz called");
+    console.log("User:", user);
+    console.log("Quiz title:", quizTitle);
+    
+    if (!user) {
+      toast.error("You must be logged in to create a quiz");
+      return;
+    }
+
     if (!quizTitle.trim()) {
       toast.error("Please enter a quiz title");
       return;
@@ -111,13 +120,19 @@ const CreateQuiz = () => {
         seb_quit_url: sebQuitUrl || undefined
       };
 
+      console.log("Quiz data to create:", quizData);
+
       const createdQuiz = await createQuiz(quizData);
+      
+      console.log("Created quiz result:", createdQuiz);
       
       if (createdQuiz) {
         // For now, we'll navigate back to the quiz list
         // In a future update, we'll implement question creation via API
         toast.success("Quiz created successfully!");
         navigate("/admin/quizzes");
+      } else {
+        toast.error("Failed to create quiz - no data returned");
       }
     } catch (error) {
       console.error("Error saving quiz:", error);

@@ -88,20 +88,44 @@ export function useQuizzes() {
 
   const createQuiz = async (quizData: CreateQuizData): Promise<Quiz | null> => {
     try {
+      console.log("createQuiz function called with data:", quizData);
+      
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      console.log("Current user data:", userData);
+      
+      if (userError || !userData.user) {
+        console.error("User not authenticated:", userError);
+        toast.error("You must be logged in to create a quiz");
+        return null;
+      }
+
+      const insertData = { 
+        ...quizData, 
+        created_by: userData.user.id,
+        status: 'draft' as const
+      };
+      
+      console.log("Data to insert:", insertData);
+
       const { data, error } = await supabase
         .from('quizzes')
-        .insert([{ ...quizData, created_by: (await supabase.auth.getUser()).data.user?.id }])
+        .insert([insertData])
         .select()
         .single();
 
-      if (error) throw error;
+      console.log("Supabase response:", { data, error });
+
+      if (error) {
+        console.error("Supabase error:", error);
+        throw error;
+      }
       
       setQuizzes(prev => [data, ...prev]);
       toast.success('Quiz created successfully!');
       return data;
     } catch (error) {
       console.error('Error creating quiz:', error);
-      toast.error('Failed to create quiz');
+      toast.error('Failed to create quiz: ' + (error as any)?.message || 'Unknown error');
       return null;
     }
   };
