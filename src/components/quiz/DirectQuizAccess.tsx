@@ -82,7 +82,8 @@ const DirectQuizAccess = () => {
       }
       
       if (password !== quiz.access_password) {
-        setError("Incorrect password");
+        setError("Incorrect password. Please try again.");
+        setPassword(""); // Clear password field
         return;
       }
     }
@@ -104,6 +105,22 @@ const DirectQuizAccess = () => {
         .single();
 
       if (attemptError) throw attemptError;
+
+      // Check if SEB is required and trigger download
+      if ((quiz as any).require_seb) {
+        // Trigger SEB file download
+        const link = document.createElement('a');
+        link.href = '/SebClientSettings.seb';
+        link.download = `${quiz.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_seb_config.seb`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast.success("SEB config downloaded! Please open it to start the quiz.");
+        
+        // Wait a moment for the download to start
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
 
       toast.success("Quiz started successfully!");
       
@@ -160,15 +177,27 @@ const DirectQuizAccess = () => {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl text-foreground">{quiz.title}</CardTitle>
           <p className="text-muted-foreground">{quiz.description}</p>
-          <div className="flex items-center justify-center space-x-4 mt-4 text-sm text-muted-foreground">
-            <span>Duration: {quiz.duration} minutes</span>
-            {quiz.password_protected && (
-              <span className="flex items-center">
-                <Lock className="h-4 w-4 mr-1" />
-                Password Protected
-              </span>
-            )}
-          </div>
+           <div className="flex items-center justify-center space-x-4 mt-4 text-sm text-muted-foreground">
+             <span>Duration: {quiz.duration} minutes</span>
+             {quiz.password_protected && (
+               <span className="flex items-center">
+                 <Lock className="h-4 w-4 mr-1" />
+                 Password Protected
+               </span>
+             )}
+           </div>
+           
+           {(quiz as any).require_seb && (
+             <div className="mt-4 p-3 bg-warning/10 border border-warning/20 rounded-lg">
+               <div className="flex items-center space-x-2 text-sm text-warning">
+                 <Shield className="h-4 w-4" />
+                 <span className="font-medium">Safe Exam Browser Required</span>
+               </div>
+               <p className="text-xs text-muted-foreground mt-1">
+                 This quiz requires Safe Exam Browser. The .seb file will download automatically when you start.
+               </p>
+             </div>
+           )}
         </CardHeader>
         
         <CardContent className="space-y-6">
@@ -234,14 +263,14 @@ const DirectQuizAccess = () => {
             </AlertDescription>
           </Alert>
           
-          <Button 
-            onClick={handleStartQuiz}
-            disabled={isStarting}
-            className="w-full bg-gradient-accent text-accent-foreground shadow-elegant"
-            size="lg"
-          >
-            {isStarting ? "Starting Quiz..." : "Start Quiz"}
-          </Button>
+           <Button 
+             onClick={handleStartQuiz}
+             disabled={isStarting}
+             className="w-full bg-gradient-accent text-accent-foreground shadow-elegant"
+             size="lg"
+           >
+             {isStarting ? "Starting Quiz..." : (quiz as any).require_seb ? "Download SEB & Start Quiz" : "Start Quiz"}
+           </Button>
         </CardContent>
       </Card>
     </div>

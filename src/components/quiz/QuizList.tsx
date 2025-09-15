@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Filter, Clock, Users, MoreHorizontal, Eye, Edit, Trash, FileText, BookOpen, Shield, Play, Share, Copy, ExternalLink } from "lucide-react";
+import { Plus, Search, Filter, Clock, Users, MoreHorizontal, Eye, Edit, Trash2 as Trash, BookOpen, Shield, Play, Share, Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { useQuizzes } from "@/hooks/useQuizzes";
 
 const QuizList = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const { quizzes, loading, deleteQuiz, publishQuiz } = useQuizzes();
+  const { quizzes, loading, deleteQuiz, publishQuiz, refetch } = useQuizzes();
 
   const filteredQuizzes = quizzes.filter(quiz =>
     quiz.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -24,8 +24,17 @@ const QuizList = () => {
     }
   };
 
-  const handlePublish = async (id: string) => {
-    await publishQuiz(id);
+  const handleTogglePublish = async (quiz: any) => {
+    try {
+      if (quiz.status === 'published') {
+        await publishQuiz(quiz.id, 'draft');
+      } else {
+        await publishQuiz(quiz.id, 'published');  
+      }
+      refetch();
+    } catch (error) {
+      toast.error("Failed to update quiz status");
+    }
   };
 
   const handleCopyLink = (quizId: string) => {
@@ -127,10 +136,10 @@ const QuizList = () => {
                           Edit
                         </DropdownMenuItem>
                         {quiz.status === 'draft' && (
-                          <DropdownMenuItem onClick={() => handlePublish(quiz.id)}>
-                            <Play className="h-4 w-4 mr-2" />
-                            Publish
-                          </DropdownMenuItem>
+                           <DropdownMenuItem onClick={() => handleTogglePublish(quiz)}>
+                             <Play className="h-4 w-4 mr-2" />
+                             Publish
+                           </DropdownMenuItem>
                         )}
                         <DropdownMenuItem 
                           className="text-destructive"

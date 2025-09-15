@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import QuizList from "./QuizList";
 import QuestionBank from "./QuestionBank";
 import CreateQuiz from "./CreateQuiz";
+import EditQuiz from "./EditQuiz";
 import Results from "./Results";
 import QuizResultDetail from "./QuizResultDetail";
 
@@ -99,7 +100,7 @@ const AdminDashboard = () => {
               <Route path="/" element={<QuizList />} />
               <Route path="/quizzes" element={<QuizList />} />
               <Route path="/questions" element={<QuestionBank />} />
-              <Route path="/create" element={<CreateQuiz />} />
+              <Route path="/edit/:quizId" element={<EditQuiz />} />
               <Route path="/results" element={<Results />} />
               <Route path="/results/:attemptId" element={<QuizResultDetail />} />
               <Route path="/settings" element={<div>Settings coming soon...</div>} />

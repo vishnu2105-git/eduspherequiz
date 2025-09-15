@@ -1,92 +1,85 @@
-import { Clock, BookOpen, Award, TrendingUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { Clock, BookOpen, Award, TrendingUp, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { supabase } from "@/integrations/supabase/client";
 
-interface AvailableQuiz {
+interface Quiz {
   id: string;
   title: string;
   description: string;
   duration: number;
-  questions: number;
-  dueDate: string;
-  status: "available" | "completed" | "overdue";
-  score?: number;
-  totalPoints?: number;
+  require_seb: boolean;
+  created_at: string;
+}
+
+interface QuizAttempt {
+  id: string;
+  quiz_id: string;
+  score: number;
+  max_score: number;
+  status: string;
 }
 
 const StudentDashboard = () => {
-  const student = {
-    name: "Alex Martinez",
-    email: "alex.m@school.edu",
-    averageScore: 87.5,
-    completedQuizzes: 12,
-    totalQuizzes: 15
-  };
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const availableQuizzes: AvailableQuiz[] = [
-    {
-      id: "1",
-      title: "Geometry Assessment",
-      description: "Comprehensive geometry test covering coordinate systems and spatial reasoning",
-      duration: 60,
-      questions: 25,
-      dueDate: "2024-01-25T23:59:00",
-      status: "available"
-    },
-    {
-      id: "2",
-      title: "Algebra Fundamentals",
-      description: "Basic algebra concepts and linear equations",
-      duration: 45,
-      questions: 30,
-      dueDate: "2024-01-22T23:59:00",
-      status: "completed",
-      score: 27,
-      totalPoints: 30
-    },
-    {
-      id: "3",
-      title: "Calculus Mid-term",
-      description: "Limits, derivatives, and integration problems",
-      duration: 90,
-      questions: 20,
-      dueDate: "2024-01-15T23:59:00",
-      status: "overdue"
-    }
-  ];
+  useEffect(() => {
+    fetchQuizzes();
+    fetchAttempts();
+  }, []);
 
-  const getStatusBadge = (quiz: AvailableQuiz) => {
-    switch (quiz.status) {
-      case "available":
-        return <Badge className="bg-accent text-accent-foreground">Available</Badge>;
-      case "completed":
-        return <Badge className="bg-primary text-primary-foreground">Completed</Badge>;
-      case "overdue":
-        return <Badge className="bg-destructive text-destructive-foreground">Overdue</Badge>;
-      default:
-        return <Badge variant="secondary">{quiz.status}</Badge>;
+  const fetchQuizzes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('quizzes')
+        .select('id, title, description, duration, require_seb, created_at')
+        .eq('status', 'published')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setQuizzes(data || []);
+    } catch (error) {
+      console.error('Error fetching quizzes:', error);
     }
   };
 
-  const getDaysUntilDue = (dueDate: string) => {
-    const due = new Date(dueDate);
-    const now = new Date();
-    const diffTime = due.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+  const fetchAttempts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('quiz_attempts')
+        .select('id, quiz_id, score, max_score, status')
+        .eq('status', 'submitted');
+
+      if (error) throw error;
+      setAttempts(data || []);
+    } catch (error) {
+      console.error('Error fetching attempts:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const formatDueDate = (dueDate: string) => {
-    return new Date(dueDate).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
+  const getQuizAttempt = (quizId: string) => {
+    return attempts.find(attempt => attempt.quiz_id === quizId);
   };
+
+  const calculateStats = () => {
+    const completedQuizzes = attempts.length;
+    const totalQuizzes = quizzes.length;
+    const averageScore = attempts.length > 0 
+      ? attempts.reduce((sum, attempt) => sum + ((attempt.score / attempt.max_score) * 100), 0) / attempts.length
+      : 0;
+    
+    return { completedQuizzes, totalQuizzes, averageScore: Math.round(averageScore * 10) / 10 };
+  };
+
+  const stats = calculateStats();
 
   return (
     <div className="min-h-screen bg-background">
@@ -101,15 +94,17 @@ const StudentDashboard = () => {
                 </div>
                 <div>
                   <h1 className="text-xl font-semibold text-foreground">Student Portal</h1>
-                  <p className="text-sm text-muted-foreground">Welcome back, {student.name}</p>
+                  <p className="text-sm text-muted-foreground">Available Quizzes</p>
                 </div>
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
-              <Badge variant="outline" className="px-3 py-1">
-                {student.email}
-              </Badge>
+              <Link to="/admin">
+                <Button variant="outline" size="sm">
+                  Admin Panel
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -126,7 +121,7 @@ const StudentDashboard = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Average Score</p>
-                  <p className="text-2xl font-bold text-foreground">{student.averageScore}%</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.averageScore}%</p>
                 </div>
               </div>
             </CardContent>
@@ -141,7 +136,7 @@ const StudentDashboard = () => {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Progress</p>
                   <p className="text-2xl font-bold text-foreground">
-                    {student.completedQuizzes}/{student.totalQuizzes}
+                    {stats.completedQuizzes}/{stats.totalQuizzes}
                   </p>
                 </div>
               </div>
@@ -158,11 +153,11 @@ const StudentDashboard = () => {
                   <p className="text-sm font-medium text-muted-foreground">Completion Rate</p>
                   <div className="flex items-center space-x-2">
                     <Progress 
-                      value={(student.completedQuizzes / student.totalQuizzes) * 100} 
+                      value={stats.totalQuizzes > 0 ? (stats.completedQuizzes / stats.totalQuizzes) * 100 : 0} 
                       className="w-16 h-2"
                     />
                     <span className="text-sm font-medium">
-                      {Math.round((student.completedQuizzes / student.totalQuizzes) * 100)}%
+                      {stats.totalQuizzes > 0 ? Math.round((stats.completedQuizzes / stats.totalQuizzes) * 100) : 0}%
                     </span>
                   </div>
                 </div>
@@ -175,84 +170,94 @@ const StudentDashboard = () => {
         <div className="space-y-6">
           <div>
             <h2 className="text-2xl font-semibold text-foreground mb-2">Available Quizzes</h2>
-            <p className="text-muted-foreground">Complete your assigned quizzes before the due date</p>
+            <p className="text-muted-foreground">Complete your assigned quizzes</p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-1">
-            {availableQuizzes.map((quiz) => (
-              <Card key={quiz.id} className="shadow-card hover:shadow-hover transition-smooth">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-lg font-semibold text-foreground">{quiz.title}</h3>
-                        {getStatusBadge(quiz)}
-                      </div>
-                      <p className="text-muted-foreground mb-4">{quiz.description}</p>
-                      
-                      <div className="flex items-center space-x-6 text-sm text-muted-foreground mb-4">
-                        <span className="flex items-center">
-                          <Clock className="h-4 w-4 mr-1" />
-                          {quiz.duration} minutes
-                        </span>
-                        <span className="flex items-center">
-                          <BookOpen className="h-4 w-4 mr-1" />
-                          {quiz.questions} questions
-                        </span>
-                      </div>
-
-                      {quiz.status === "completed" && quiz.score && quiz.totalPoints && (
-                        <div className="flex items-center space-x-4 mb-4">
-                          <div className="flex items-center space-x-2">
-                            <Award className="h-4 w-4 text-accent" />
-                            <span className="font-medium text-accent">
-                              Score: {quiz.score}/{quiz.totalPoints} ({((quiz.score / quiz.totalPoints) * 100).toFixed(1)}%)
+          {loading ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+            </div>
+          ) : quizzes.length === 0 ? (
+            <Card className="shadow-card">
+              <CardContent className="p-8 text-center">
+                <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">No Quizzes Available</h3>
+                <p className="text-muted-foreground">There are no published quizzes at the moment.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-1">
+              {quizzes.map((quiz) => {
+                const attempt = getQuizAttempt(quiz.id);
+                const isCompleted = !!attempt;
+                
+                return (
+                  <Card key={quiz.id} className="shadow-card hover:shadow-hover transition-smooth">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3 mb-2">
+                            <h3 className="text-lg font-semibold text-foreground">{quiz.title}</h3>
+                            <Badge className={isCompleted ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground"}>
+                              {isCompleted ? "Completed" : "Available"}
+                            </Badge>
+                          </div>
+                          <p className="text-muted-foreground mb-4">{quiz.description}</p>
+                          
+                          <div className="flex items-center space-x-6 text-sm text-muted-foreground mb-4">
+                            <span className="flex items-center">
+                              <Clock className="h-4 w-4 mr-1" />
+                              {quiz.duration} minutes
                             </span>
+                            {quiz.require_seb && (
+                              <Badge variant="outline" className="text-xs">
+                                Requires SEB
+                              </Badge>
+                            )}
+                          </div>
+
+                          {isCompleted && attempt && (
+                            <div className="flex items-center space-x-4 mb-4">
+                              <div className="flex items-center space-x-2">
+                                <Award className="h-4 w-4 text-accent" />
+                                <span className="font-medium text-accent">
+                                  Score: {attempt.score}/{attempt.max_score} ({((attempt.score / attempt.max_score) * 100).toFixed(1)}%)
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-muted-foreground">
+                                Created: {new Date(quiz.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            
+                            <div className="flex items-center space-x-2">
+                              {!isCompleted && (
+                                <Link to={`/quiz/${quiz.id}/direct`}>
+                                  <Button variant="academic" className="shadow-elegant">
+                                    <ExternalLink className="h-4 w-4 mr-2" />
+                                    Start Quiz
+                                  </Button>
+                                </Link>
+                              )}
+                              {isCompleted && (
+                                <Button variant="outline" disabled>
+                                  Completed
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      )}
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">
-                            Due: {formatDueDate(quiz.dueDate)}
-                          </p>
-                          {quiz.status === "available" && (
-                            <p className={`text-sm font-medium ${
-                              getDaysUntilDue(quiz.dueDate) <= 1 ? "text-destructive" : "text-warning"
-                            }`}>
-                              {getDaysUntilDue(quiz.dueDate) > 0 
-                                ? `${getDaysUntilDue(quiz.dueDate)} days remaining`
-                                : "Due today!"
-                              }
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          {quiz.status === "available" && (
-                            <Button variant="academic" className="shadow-elegant">
-                              Start Quiz
-                            </Button>
-                          )}
-                          {quiz.status === "completed" && (
-                            <Button variant="outline">
-                              Review Results
-                            </Button>
-                          )}
-                          {quiz.status === "overdue" && (
-                            <Button variant="outline" disabled>
-                              Overdue
-                            </Button>
-                          )}
-                        </div>
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

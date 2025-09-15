@@ -44,11 +44,13 @@ export interface CreateQuizData {
   allow_multiple_attempts: boolean;
   shuffle_questions: boolean;
   show_results_immediately: boolean;
+  password_protected?: boolean;
+  access_password?: string | null;
+  max_attempts?: number;
   require_seb?: boolean;
   seb_config_key?: string;
   seb_browser_exam_key?: string;
   seb_quit_url?: string;
-  max_attempts?: number;
 }
 
 export interface CreateQuestionData {
@@ -144,8 +146,23 @@ export function useQuizzes() {
     }
   };
 
-  const publishQuiz = async (id: string): Promise<boolean> => {
-    return updateQuiz(id, { status: 'published' });
+  const publishQuiz = async (id: string, status: 'published' | 'draft' = 'published'): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('quizzes')
+        .update({ status })
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      await fetchQuizzes();
+      toast.success(`Quiz ${status === 'published' ? 'published' : 'unpublished'} successfully!`);
+      return true;
+    } catch (error) {
+      console.error('Error updating quiz status:', error);
+      toast.error(`Failed to ${status === 'published' ? 'publish' : 'unpublish'} quiz`);
+      return false;
+    }
   };
 
   useEffect(() => {
@@ -253,6 +270,7 @@ export function useQuizQuestions(quizId: string) {
   return {
     questions,
     loading,
+    fetchQuestions,
     createQuestion,
     updateQuestion,
     deleteQuestion,
