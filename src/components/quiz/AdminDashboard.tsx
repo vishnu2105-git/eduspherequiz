@@ -100,6 +100,7 @@ const AdminDashboard = () => {
               <Route path="/" element={<QuizList />} />
               <Route path="/quizzes" element={<QuizList />} />
               <Route path="/questions" element={<QuestionBank />} />
+              <Route path="/create" element={<CreateQuiz />} />
               <Route path="/edit/:quizId" element={<EditQuiz />} />
               <Route path="/results" element={<Results />} />
               <Route path="/results/:attemptId" element={<QuizResultDetail />} />
