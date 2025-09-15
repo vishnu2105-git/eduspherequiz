@@ -172,19 +172,25 @@ export function useQuizzes() {
 
   const publishQuiz = async (id: string, status: 'published' | 'draft' = 'published'): Promise<boolean> => {
     try {
+      console.log(`Publishing quiz ${id} with status ${status}`);
+      
       const { error } = await supabase
         .from('quizzes')
         .update({ status })
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error updating quiz status:', error);
+        throw error;
+      }
       
+      console.log('Quiz status updated successfully');
       await fetchQuizzes();
       toast.success(`Quiz ${status === 'published' ? 'published' : 'unpublished'} successfully!`);
       return true;
     } catch (error) {
       console.error('Error updating quiz status:', error);
-      toast.error(`Failed to ${status === 'published' ? 'publish' : 'unpublish'} quiz`);
+      toast.error(`Failed to ${status === 'published' ? 'publish' : 'unpublish'} quiz: ${(error as any)?.message || 'Unknown error'}`);
       return false;
     }
   };

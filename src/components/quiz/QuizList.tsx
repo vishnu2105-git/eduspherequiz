@@ -26,13 +26,16 @@ const QuizList = () => {
 
   const handleTogglePublish = async (quiz: any) => {
     try {
-      if (quiz.status === 'published') {
-        await publishQuiz(quiz.id, 'draft');
-      } else {
-        await publishQuiz(quiz.id, 'published');  
+      const newStatus = quiz.status === 'published' ? 'draft' : 'published';
+      console.log(`Toggling quiz ${quiz.id} from ${quiz.status} to ${newStatus}`);
+      
+      const success = await publishQuiz(quiz.id, newStatus);
+      if (success) {
+        console.log("Toggle successful, refetching quizzes");
+        refetch();
       }
-      refetch();
     } catch (error) {
+      console.error("Toggle error:", error);
       toast.error("Failed to update quiz status");
     }
   };
@@ -136,10 +139,16 @@ const QuizList = () => {
                           Edit
                         </DropdownMenuItem>
                         {quiz.status === 'draft' && (
-                           <DropdownMenuItem onClick={() => handleTogglePublish(quiz)}>
-                             <Play className="h-4 w-4 mr-2" />
-                             Publish
-                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleTogglePublish(quiz)}>
+                            <Play className="h-4 w-4 mr-2" />
+                            Publish
+                          </DropdownMenuItem>
+                        )}
+                        {quiz.status === 'published' && (
+                          <DropdownMenuItem onClick={() => handleTogglePublish(quiz)}>
+                            <Play className="h-4 w-4 mr-2" />
+                            Unpublish
+                          </DropdownMenuItem>
                         )}
                         <DropdownMenuItem 
                           className="text-destructive"

@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useQuizzes, CreateQuizData } from "@/hooks/useQuizzes";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface LocalQuestion {
@@ -127,9 +128,41 @@ const CreateQuiz = () => {
       console.log("Created quiz result:", createdQuiz);
       
       if (createdQuiz) {
-        // For now, we'll navigate back to the quiz list
-        // In a future update, we'll implement question creation via API
-        toast.success("Quiz created successfully!");
+        // Now create the questions for the quiz
+        console.log("Creating questions for quiz:", createdQuiz.id);
+        
+        for (let i = 0; i < localQuestions.length; i++) {
+          const question = localQuestions[i];
+          
+          if (!question.text.trim()) continue; // Skip empty questions
+          
+          const questionData = {
+            quiz_id: createdQuiz.id,
+            question_text: question.text,
+            question_type: question.type,
+            options: question.type === 'multiple-choice' ? question.options : null,
+            correct_answer: question.type === 'multiple-choice' ? question.options[question.correctAnswer] : null,
+            points: question.points,
+            order_index: i + 1,
+            has_image: question.hasImage,
+            image_url: null // TODO: Handle image uploads later
+          };
+          
+          console.log("Creating question:", questionData);
+          
+          const { error: questionError } = await supabase
+            .from('questions')
+            .insert([questionData]);
+          
+          if (questionError) {
+            console.error("Error creating question:", questionError);
+            toast.error(`Failed to create question ${i + 1}`);
+          } else {
+            console.log("Question created successfully");
+          }
+        }
+        
+        toast.success(`Quiz created successfully with ${localQuestions.length} questions!`);
         navigate("/admin/quizzes");
       } else {
         toast.error("Failed to create quiz - no data returned");
