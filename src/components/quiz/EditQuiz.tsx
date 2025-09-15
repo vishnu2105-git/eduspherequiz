@@ -166,6 +166,43 @@ const EditQuiz = () => {
         seb_quit_url: sebQuitUrl || undefined
       });
 
+      // Save/update questions
+      for (const question of localQuestions) {
+        if (question.id.startsWith('temp-')) {
+          // Create new question
+          await createQuestion({
+            quiz_id: quizId,
+            question_text: question.text,
+            question_type: question.type,
+            options: question.type === "multiple-choice" ? question.options : undefined,
+            correct_answer: question.type === "multiple-choice" ? question.options[question.correctAnswer] : undefined,
+            points: question.points,
+            order_index: localQuestions.indexOf(question),
+            has_image: question.hasImage
+          });
+        } else {
+          // Update existing question
+          await updateQuestion(question.id, {
+            question_text: question.text,
+            question_type: question.type,
+            options: question.type === "multiple-choice" ? question.options : undefined,
+            correct_answer: question.type === "multiple-choice" ? question.options[question.correctAnswer] : undefined,
+            points: question.points,
+            order_index: localQuestions.indexOf(question),
+            has_image: question.hasImage
+          });
+        }
+      }
+
+      // Delete questions that were removed
+      const currentQuestionIds = localQuestions.map(q => q.id).filter(id => !id.startsWith('temp-'));
+      const originalQuestionIds = questions.map(q => q.id);
+      const deletedQuestionIds = originalQuestionIds.filter(id => !currentQuestionIds.includes(id));
+      
+      for (const questionId of deletedQuestionIds) {
+        await deleteQuestion(questionId);
+      }
+
       toast.success("Quiz updated successfully!");
       navigate("/admin/quizzes");
     } catch (error) {

@@ -261,12 +261,49 @@ const QuizTaking = () => {
     setIsSubmitting(true);
     
     try {
-      // Save all answers
-      const answerData = Object.entries(answers).map(([questionId, answer]) => ({
-        attempt_id: attemptId,
-        question_id: questionId,
-        answer_text: answer
-      }));
+      // Calculate grade
+      let totalScore = 0;
+      let maxScore = 0;
+      
+      // First, fetch questions with correct answers for grading
+      const { data: questionsWithAnswers, error: questionsError } = await supabase
+        .from('questions')
+        .select('id, correct_answer, points, question_type')
+        .eq('quiz_id', quizId);
+
+      if (questionsError) throw questionsError;
+
+      // Save all answers with grading
+      const answerData = Object.entries(answers).map(([questionId, answer]) => {
+        const question = questionsWithAnswers?.find(q => q.id === questionId);
+        let isCorrect = false;
+        let pointsEarned = 0;
+
+        if (question) {
+          maxScore += question.points;
+          
+          if (question.question_type === 'multiple-choice') {
+            isCorrect = answer === question.correct_answer;
+          } else if (question.question_type === 'fill-blank') {
+            // Case-insensitive comparison for fill-in-the-blank
+            isCorrect = answer.toLowerCase().trim() === question.correct_answer?.toLowerCase().trim();
+          } else {
+            // For short-answer, mark as needing manual review
+            isCorrect = false;
+          }
+          
+          pointsEarned = isCorrect ? question.points : 0;
+          totalScore += pointsEarned;
+        }
+
+        return {
+          attempt_id: attemptId,
+          question_id: questionId,
+          answer_text: answer,
+          is_correct: isCorrect,
+          points_earned: pointsEarned
+        };
+      });
 
       if (answerData.length > 0) {
         const { error: answersError } = await supabase
@@ -276,20 +313,22 @@ const QuizTaking = () => {
         if (answersError) throw answersError;
       }
 
-      // Mark attempt as completed
+      // Update attempt with score and completion status
       const { error: attemptError } = await supabase
         .from('quiz_attempts')
         .update({
-          status: 'submitted',
+          status: 'graded',
           submitted_at: new Date().toISOString(),
-          time_spent: (quizData.duration * 60) - timeRemaining
+          time_spent: (quizData.duration * 60) - timeRemaining,
+          score: totalScore,
+          max_score: maxScore
         })
         .eq('id', attemptId);
 
       if (attemptError) throw attemptError;
 
-      toast.success("Quiz submitted successfully!");
-      navigate(token ? "/" : "/student");
+      toast.success("Quiz submitted and graded successfully!");
+      navigate("/student");
       
     } catch (error) {
       console.error('Error submitting quiz:', error);
