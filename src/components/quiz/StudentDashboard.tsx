@@ -13,6 +13,7 @@ interface Quiz {
   description: string;
   duration: number;
   require_seb: boolean;
+  allow_multiple_attempts: boolean;
   created_at: string;
 }
 
@@ -38,7 +39,7 @@ const StudentDashboard = () => {
     try {
       const { data, error } = await supabase
         .from('quizzes')
-        .select('id, title, description, duration, require_seb, created_at')
+        .select('id, title, description, duration, require_seb, created_at, allow_multiple_attempts')
         .eq('status', 'published')
         .order('created_at', { ascending: false });
 
@@ -54,7 +55,7 @@ const StudentDashboard = () => {
       const { data, error } = await supabase
         .from('quiz_attempts')
         .select('id, quiz_id, score, max_score, status')
-        .eq('status', 'submitted');
+        .in('status', ['submitted', 'graded']);
 
       if (error) throw error;
       setAttempts(data || []);
@@ -189,7 +190,7 @@ const StudentDashboard = () => {
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-1">
               {quizzes.map((quiz) => {
                 const attempt = getQuizAttempt(quiz.id);
-                const isCompleted = !!attempt;
+                const isCompleted = !!attempt && !quiz.allow_multiple_attempts;
                 
                 return (
                   <Card key={quiz.id} className="shadow-card hover:shadow-hover transition-smooth">

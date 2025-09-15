@@ -40,7 +40,7 @@ const DirectQuizAccess = () => {
     try {
       const { data, error } = await supabase
         .from('quizzes')
-        .select('id, title, description, password_protected, access_password, duration')
+        .select('id, title, description, password_protected, access_password, duration, require_seb')
         .eq('id', quizId)
         .eq('status', 'published')
         .maybeSingle();

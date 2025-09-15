@@ -100,8 +100,8 @@ const EditQuiz = () => {
         setAccessPassword(quiz.access_password || "");
         setMaxAttempts(quiz.max_attempts?.toString() || "");
         setRequireSeb(quiz.require_seb);
-        setSebConfigKey(quiz.seb_config_key || "");
-        setSebBrowserExamKey(quiz.seb_browser_exam_key || "");
+        setSebConfigKey("93b5ee33edfe55df832cc088ac9c8b8e0a8c5137c0135e358315ad9fb7d0baa4");
+        setSebBrowserExamKey("936a0c8c44a491a2d0944b50c20e547898b299a716da29a64a538b534caa6200");
         setSebQuitUrl(quiz.seb_quit_url || "");
       }
 
@@ -161,9 +161,9 @@ const EditQuiz = () => {
         access_password: passwordProtected ? accessPassword : null,
         max_attempts: maxAttempts ? parseInt(maxAttempts) : null,
         require_seb: requireSeb,
-        seb_config_key: sebConfigKey || undefined,
-        seb_browser_exam_key: sebBrowserExamKey || undefined,
-        seb_quit_url: sebQuitUrl || undefined
+        seb_config_key: requireSeb ? "93b5ee33edfe55df832cc088ac9c8b8e0a8c5137c0135e358315ad9fb7d0baa4" : null,
+        seb_browser_exam_key: requireSeb ? "936a0c8c44a491a2d0944b50c20e547898b299a716da29a64a538b534caa6200" : null,
+        seb_quit_url: sebQuitUrl || null
       });
 
       // Save/update questions
@@ -387,20 +387,22 @@ const EditQuiz = () => {
                       <Label htmlFor="seb-config-key">SEB Config Key</Label>
                       <Input
                         id="seb-config-key"
-                        value={sebConfigKey}
-                        onChange={(e) => setSebConfigKey(e.target.value)}
-                        placeholder="Enter SEB Config Key..."
+                        value="93b5ee33edfe55df832cc088ac9c8b8e0a8c5137c0135e358315ad9fb7d0baa4"
+                        disabled
+                        className="bg-muted"
                       />
+                      <p className="text-xs text-muted-foreground">Automatically configured system key</p>
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="seb-browser-key">SEB Browser Exam Key</Label>
                       <Input
                         id="seb-browser-key"
-                        value={sebBrowserExamKey}
-                        onChange={(e) => setSebBrowserExamKey(e.target.value)}
-                        placeholder="Enter Browser Exam Key..."
+                        value="936a0c8c44a491a2d0944b50c20e547898b299a716da29a64a538b534caa6200"
+                        disabled
+                        className="bg-muted"
                       />
+                      <p className="text-xs text-muted-foreground">Automatically configured system key</p>
                     </div>
 
                     <div className="space-y-2">

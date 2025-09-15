@@ -31,6 +31,7 @@ interface QuizData {
   title: string;
   description: string;
   duration: number;
+  show_results_immediately: boolean;
   questions: Question[];
 }
 
@@ -78,7 +79,7 @@ const QuizTaking = () => {
       // Fetch quiz details
       const { data: quiz, error: quizError } = await supabase
         .from('quizzes')
-        .select('id, title, description, duration, status')
+        .select('id, title, description, duration, status, show_results_immediately')
         .eq('id', quizId)
         .maybeSingle();
 
@@ -110,7 +111,11 @@ const QuizTaking = () => {
       if (questionsError) throw questionsError;
 
       setQuizData({
-        ...quiz,
+        id: quiz.id,
+        title: quiz.title,
+        description: quiz.description,
+        duration: quiz.duration,
+        show_results_immediately: quiz.show_results_immediately,
         questions: questions?.map(q => ({
           ...q,
           options: q.options ? (q.options as string[]) : null
@@ -327,7 +332,13 @@ const QuizTaking = () => {
 
       if (attemptError) throw attemptError;
 
-      toast.success("Quiz submitted and graded successfully!");
+      // Check if results should be shown immediately
+      if (quizData.show_results_immediately) {
+        toast.success(`Quiz completed! Score: ${totalScore}/${maxScore} (${Math.round((totalScore/maxScore)*100)}%)`);
+      } else {
+        toast.success("Quiz submitted successfully!");
+      }
+      
       navigate("/student");
       
     } catch (error) {
