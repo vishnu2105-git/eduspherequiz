@@ -141,6 +141,20 @@ const QuizTaking = () => {
           return;
         }
         setAttemptId(attempt.id);
+
+        // Load saved answers for resume
+        const { data: savedAnswers } = await supabase
+          .from('attempt_answers')
+          .select('question_id, answer_text')
+          .eq('attempt_id', attempt.id);
+
+        if (savedAnswers) {
+          const answersMap: Record<string, string> = {};
+          savedAnswers.forEach(ans => {
+            answersMap[ans.question_id] = ans.answer_text;
+          });
+          setAnswers(answersMap);
+        }
       } else {
         // Authenticated user attempt
         const { data: { user } } = await supabase.auth.getUser();
@@ -235,6 +249,34 @@ const QuizTaking = () => {
   const handleAnswerChange = (questionId: string, answer: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
   };
+
+  // Auto-save answers every 30 seconds
+  useEffect(() => {
+    if (!attemptId || !quizData) return;
+
+    const autoSave = async () => {
+      try {
+        const answerData = Object.entries(answers).map(([questionId, answer]) => ({
+          attempt_id: attemptId,
+          question_id: questionId,
+          answer_text: answer,
+          is_correct: null, // Will be graded on submission
+          points_earned: 0
+        }));
+
+        if (answerData.length > 0) {
+          await supabase
+            .from('attempt_answers')
+            .upsert(answerData, { onConflict: 'attempt_id,question_id' });
+        }
+      } catch (error) {
+        console.error('Auto-save error:', error);
+      }
+    };
+
+    const interval = setInterval(autoSave, 30000); // Auto-save every 30 seconds
+    return () => clearInterval(interval);
+  }, [answers, attemptId, quizData]);
 
   const handleFlagQuestion = (questionId: string) => {
     setFlaggedQuestions(prev => {

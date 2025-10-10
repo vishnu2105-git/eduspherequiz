@@ -236,9 +236,15 @@ export function useQuizQuestions(quizId: string) {
 
   const createQuestion = async (questionData: CreateQuestionData): Promise<Question | null> => {
     try {
+      // Ensure correct_answer has a value (empty string if not provided)
+      const dataToInsert = {
+        ...questionData,
+        correct_answer: questionData.correct_answer ?? ''
+      };
+
       const { data, error } = await supabase
         .from('questions')
-        .insert([questionData])
+        .insert([dataToInsert])
         .select()
         .single();
 

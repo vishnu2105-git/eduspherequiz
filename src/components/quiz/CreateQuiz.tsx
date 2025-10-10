@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { useQuizzes, CreateQuizData } from "@/hooks/useQuizzes";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { ImageUploadService } from "@/services/imageUpload";
 import { toast } from "sonner";
 
 interface LocalQuestion {
@@ -20,8 +21,9 @@ interface LocalQuestion {
   type: "multiple-choice" | "fill-blank" | "short-answer";
   text: string;
   options: string[];
-  correctAnswer: number;
+  correctAnswer: number | string;
   hasImage: boolean;
+  imageUrl?: string;
   points: number;
 }
 
@@ -84,6 +86,23 @@ const CreateQuiz = () => {
     }
   };
 
+  const handleImageUpload = async (questionId: string, file: File) => {
+    try {
+      // Use a temporary quiz ID for now, will update after quiz creation
+      const imageUrl = await ImageUploadService.uploadQuestionImage(
+        'temp',
+        questionId,
+        file
+      );
+      updateLocalQuestion(questionId, 'imageUrl', imageUrl);
+      updateLocalQuestion(questionId, 'hasImage', true);
+      toast.success('Image uploaded successfully');
+    } catch (error) {
+      console.error('Image upload error:', error);
+      toast.error('Failed to upload image');
+    }
+  };
+
   const handleSaveQuiz = async () => {
     console.log("handleSaveQuiz called");
     console.log("User:", user);
@@ -141,11 +160,13 @@ const CreateQuiz = () => {
             question_text: question.text,
             question_type: question.type,
             options: question.type === 'multiple-choice' ? question.options : null,
-            correct_answer: question.type === 'multiple-choice' ? question.options[question.correctAnswer] : null,
+            correct_answer: question.type === 'multiple-choice' 
+              ? question.options[question.correctAnswer as number]
+              : typeof question.correctAnswer === 'string' ? question.correctAnswer : null,
             points: question.points,
             order_index: i + 1,
             has_image: question.hasImage,
-            image_url: null // TODO: Handle image uploads later
+            image_url: question.imageUrl || null
           };
           
           console.log("Creating question:", questionData);
@@ -398,14 +419,40 @@ const CreateQuiz = () => {
                   </div>
 
                   <div className="flex items-center space-x-4">
-                    <Button variant="outline" size="sm" disabled>
-                      <Image className="h-4 w-4 mr-2" />
-                      Add Image
-                    </Button>
+                    <div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        id={`image-upload-${question.id}`}
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(question.id, file);
+                        }}
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => document.getElementById(`image-upload-${question.id}`)?.click()}
+                      >
+                        <Image className="h-4 w-4 mr-2" />
+                        {question.hasImage ? 'Change Image' : 'Add Image'}
+                      </Button>
+                    </div>
                     <Badge variant="outline">
                       Points: {question.points}
                     </Badge>
                   </div>
+
+                  {question.hasImage && question.imageUrl && (
+                    <div className="relative w-full max-w-xs">
+                      <img 
+                        src={question.imageUrl} 
+                        alt="Question" 
+                        className="w-full rounded-md border"
+                      />
+                    </div>
+                  )}
 
                   {question.type === "multiple-choice" && (
                     <div className="space-y-2">
@@ -437,15 +484,21 @@ const CreateQuiz = () => {
                   {question.type === "fill-blank" && (
                     <div className="space-y-2">
                       <Label>Correct Answer</Label>
-                      <Input placeholder="Enter the correct answer..." />
+                      <Input 
+                        value={typeof question.correctAnswer === 'string' ? question.correctAnswer : ''}
+                        onChange={(e) => updateLocalQuestion(question.id, 'correctAnswer', e.target.value)}
+                        placeholder="Enter the correct answer..." 
+                      />
                     </div>
                   )}
 
                   {question.type === "short-answer" && (
                     <div className="space-y-2">
-                      <Label>Answer Guidelines (for manual grading)</Label>
+                      <Label>Correct Answer / Answer Guidelines</Label>
                       <Textarea 
-                        placeholder="Provide key points that should be included in the answer..."
+                        value={typeof question.correctAnswer === 'string' ? question.correctAnswer : ''}
+                        onChange={(e) => updateLocalQuestion(question.id, 'correctAnswer', e.target.value)}
+                        placeholder="Provide the correct answer or key points for manual grading..."
                         rows={3}
                       />
                     </div>

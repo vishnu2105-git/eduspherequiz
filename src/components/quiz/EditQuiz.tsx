@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { useQuizzes, useQuizQuestions } from "@/hooks/useQuizzes";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { ImageUploadService } from "@/services/imageUpload";
 import { toast } from "sonner";
 
 interface LocalQuestion {
@@ -20,8 +21,9 @@ interface LocalQuestion {
   type: "multiple-choice" | "fill-blank" | "short-answer";
   text: string;
   options: string[];
-  correctAnswer: number;
+  correctAnswer: number | string;
   hasImage: boolean;
+  imageUrl?: string;
   points: number;
 }
 
@@ -64,15 +66,27 @@ const EditQuiz = () => {
   useEffect(() => {
     if (questions.length > 0) {
       // Convert database questions to local format
-      const convertedQuestions = questions.map(q => ({
-        id: q.id,
-        type: q.question_type as "multiple-choice" | "fill-blank" | "short-answer",
-        text: q.question_text,
-        options: Array.isArray(q.options) ? q.options : [],
-        correctAnswer: 0, // Will need to parse from correct_answer
-        hasImage: q.has_image,
-        points: q.points
-      }));
+      const convertedQuestions = questions.map(q => {
+        let correctAnswer: number | string = 0;
+        if (q.question_type === 'multiple-choice' && Array.isArray(q.options)) {
+          correctAnswer = q.options.indexOf(q.correct_answer) >= 0 
+            ? q.options.indexOf(q.correct_answer) 
+            : 0;
+        } else {
+          correctAnswer = q.correct_answer || '';
+        }
+
+        return {
+          id: q.id,
+          type: q.question_type as "multiple-choice" | "fill-blank" | "short-answer",
+          text: q.question_text,
+          options: Array.isArray(q.options) ? q.options : [],
+          correctAnswer,
+          hasImage: q.has_image || false,
+          imageUrl: q.image_url || undefined,
+          points: q.points
+        };
+      });
       setLocalQuestions(convertedQuestions);
     }
   }, [questions]);
@@ -138,6 +152,23 @@ const EditQuiz = () => {
     setLocalQuestions(localQuestions.filter(q => q.id !== id));
   };
 
+  const handleImageUpload = async (questionId: string, file: File) => {
+    if (!quizId) return;
+    try {
+      const imageUrl = await ImageUploadService.uploadQuestionImage(
+        quizId,
+        questionId,
+        file
+      );
+      updateLocalQuestion(questionId, 'imageUrl', imageUrl);
+      updateLocalQuestion(questionId, 'hasImage', true);
+      toast.success('Image uploaded successfully');
+    } catch (error) {
+      console.error('Image upload error:', error);
+      toast.error('Failed to upload image');
+    }
+  };
+
   const handleSaveQuiz = async () => {
     if (!quizId) return;
     
@@ -175,10 +206,13 @@ const EditQuiz = () => {
             question_text: question.text,
             question_type: question.type,
             options: question.type === "multiple-choice" ? question.options : undefined,
-            correct_answer: question.type === "multiple-choice" ? question.options[question.correctAnswer] : undefined,
+            correct_answer: question.type === "multiple-choice" 
+              ? question.options[question.correctAnswer as number]
+              : typeof question.correctAnswer === 'string' ? question.correctAnswer : undefined,
             points: question.points,
             order_index: localQuestions.indexOf(question),
-            has_image: question.hasImage
+            has_image: question.hasImage,
+            image_url: question.imageUrl || undefined
           });
         } else {
           // Update existing question
@@ -186,10 +220,13 @@ const EditQuiz = () => {
             question_text: question.text,
             question_type: question.type,
             options: question.type === "multiple-choice" ? question.options : undefined,
-            correct_answer: question.type === "multiple-choice" ? question.options[question.correctAnswer] : undefined,
+            correct_answer: question.type === "multiple-choice" 
+              ? question.options[question.correctAnswer as number]
+              : typeof question.correctAnswer === 'string' ? question.correctAnswer : undefined,
             points: question.points,
             order_index: localQuestions.indexOf(question),
-            has_image: question.hasImage
+            has_image: question.hasImage,
+            image_url: question.imageUrl || undefined
           });
         }
       }
@@ -482,14 +519,40 @@ const EditQuiz = () => {
                     </div>
 
                     <div className="flex items-center space-x-4">
-                      <Button variant="outline" size="sm" disabled>
-                        <Image className="h-4 w-4 mr-2" />
-                        Add Image
-                      </Button>
+                      <div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          id={`image-upload-${question.id}`}
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleImageUpload(question.id, file);
+                          }}
+                        />
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => document.getElementById(`image-upload-${question.id}`)?.click()}
+                        >
+                          <Image className="h-4 w-4 mr-2" />
+                          {question.hasImage ? 'Change Image' : 'Add Image'}
+                        </Button>
+                      </div>
                       <Badge variant="outline">
                         Points: {question.points}
                       </Badge>
                     </div>
+
+                    {question.hasImage && question.imageUrl && (
+                      <div className="relative w-full max-w-xs">
+                        <img 
+                          src={question.imageUrl} 
+                          alt="Question" 
+                          className="w-full rounded-md border"
+                        />
+                      </div>
+                    )}
 
                     {question.type === "multiple-choice" && (
                       <div className="space-y-2">
@@ -521,15 +584,21 @@ const EditQuiz = () => {
                     {question.type === "fill-blank" && (
                       <div className="space-y-2">
                         <Label>Correct Answer</Label>
-                        <Input placeholder="Enter the correct answer..." />
+                        <Input 
+                          value={typeof question.correctAnswer === 'string' ? question.correctAnswer : ''}
+                          onChange={(e) => updateLocalQuestion(question.id, 'correctAnswer', e.target.value)}
+                          placeholder="Enter the correct answer..." 
+                        />
                       </div>
                     )}
 
                     {question.type === "short-answer" && (
                       <div className="space-y-2">
-                        <Label>Answer Guidelines (for manual grading)</Label>
+                        <Label>Correct Answer / Answer Guidelines</Label>
                         <Textarea 
-                          placeholder="Provide key points that should be included in the answer..."
+                          value={typeof question.correctAnswer === 'string' ? question.correctAnswer : ''}
+                          onChange={(e) => updateLocalQuestion(question.id, 'correctAnswer', e.target.value)}
+                          placeholder="Provide the correct answer or key points for manual grading..."
                           rows={3}
                         />
                       </div>
