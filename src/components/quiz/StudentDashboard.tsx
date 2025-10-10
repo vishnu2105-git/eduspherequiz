@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Clock, BookOpen, Award, TrendingUp, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +26,7 @@ interface QuizAttempt {
 }
 
 const StudentDashboard = () => {
+  const navigate = useNavigate();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -218,13 +219,20 @@ const StudentDashboard = () => {
                           </div>
 
                           {isCompleted && attempt && (
-                            <div className="flex items-center space-x-4 mb-4">
+                            <div className="space-y-2 mb-4">
                               <div className="flex items-center space-x-2">
                                 <Award className="h-4 w-4 text-accent" />
                                 <span className="font-medium text-accent">
                                   Score: {attempt.score}/{attempt.max_score} ({((attempt.score / attempt.max_score) * 100).toFixed(1)}%)
                                 </span>
                               </div>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => navigate(`/student/results/${attempt.id}`)}
+                              >
+                                View Detailed Results
+                              </Button>
                             </div>
                           )}
 
